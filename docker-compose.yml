@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  db:
+    image: mariadb:latest
+    container_name: hostel_mariadb
+    environment:
+      MYSQL_ROOT_PASSWORD: root_password   # Set your root password here
+      MYSQL_DATABASE: HostelManagement     # Name of the database to create
+      MYSQL_USER: user                    # Create a non-root user if needed
+      MYSQL_PASSWORD: user_password        # Non-root user password
+    volumes:
+      - db_data:/var/lib/mysql             # Persist data between container restarts
+      - ./commands.sql:/docker-entrypoint-initdb.d/commands.sql # Initialize DB with the SQL file
+    ports:
+      - "3306:3306"                        # Expose MariaDB port
+
+  app:
+    build: .
+    container_name: hostel_app
+    depends_on:
+      - db                                 # Ensure db is started before the app
+    environment:
+      DB_HOST: db                          # Database host, corresponds to the service name
+      DB_PORT: 3306
+      DB_NAME: HostelManagement
+      DB_USER: root                        # Same as set in the db environment
+      DB_PASSWORD: root_password
+    volumes:
+      - .:/app                             # Mount the current directory to /app in the container
+    command: python App.py                 # Command to run the Python app
+    ports:
+      - "8000:8000"                        # Expose the app port if needed for external access
+
+volumes:
+  db_data:
