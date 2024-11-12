@@ -235,146 +235,94 @@ def main(page: ft.Page):
             return
         
         try:
-            if Student.insert(
-                student_id.value, name.value, course.value,
-                mess_plan.value, laundry_plan.value,
-                int(hostel_id.value), int(room_no.value)
-            ):
+            # Step 1: Check the number of students already assigned to the room
+            student_count_query = """
+            SELECT COUNT(*) 
+            FROM STUDENT 
+            WHERE room_no = %s;
+            """
+            student_count = DatabaseManager.execute_query(student_count_query, (room_no.value,), fetch=True)
+            
+            # Step 2: Get the room's capacity
+            room_capacity_query = """
+            SELECT capacity 
+            FROM ROOM 
+            WHERE room_no = %s;
+            """
+            room_capacity = DatabaseManager.execute_query(room_capacity_query, (room_no.value,), fetch=True)
+
+            # Step 3: Compare the current occupancy with room capacity
+            if student_count and room_capacity:
+                if student_count[0][0] >= room_capacity[0][0]:
+                    # If room is full, show error message
+                    show_snackbar(f"Room {room_no.value} is full. No available space.", "red")
+                    return False
+
+            # Step 4: Insert student if space is available
+            insert_student_query = """
+            INSERT INTO STUDENT (student_id, name, course, mess_plan, laundry_plan, hostel_id, room_no) 
+            VALUES (%s, %s, %s, %s, %s, %s, %s);
+            """
+            values = (student_id.value, name.value, course.value, mess_plan.value, laundry_plan.value, hostel_id.value, room_no.value)
+            
+            if DatabaseManager.execute_query(insert_student_query, values):
                 show_snackbar(f"Student {name.value} added successfully!")
-                clear_fields()
-                load_students()
+                return True
             else:
                 show_snackbar("Failed to add student", "red")
-        except ValueError:
-            show_snackbar("Invalid hostel ID or room number", "red")
+                return False
+        except Exception as e:
+            show_snackbar(f"Error: {e}", "red")
+            return False
 
     def edit_student(student_data):
-        nonlocal current_student
-        current_student = student_data
         student_id.value = student_data[0]
         name.value = student_data[1]
         course.value = student_data[2]
         mess_plan.value = student_data[3]
         laundry_plan.value = student_data[4]
-        hostel_id.value = str(student_data[5])
-        room_no.value = str(student_data[6])
-        student_id.disabled = True
-        add_button.visible = False
-        update_button.visible = True
+        hostel_id.value = student_data[5]
+        room_no.value = student_data[6]
+
+        # Update button will now act as "Save"
         page.update()
 
-    def update_student(e):
-        if not validate_fields():
-            return
-        
-        try:
-            if Student.update(
-                student_id.value, name.value, course.value,
-                mess_plan.value, laundry_plan.value,
-                int(hostel_id.value), int(room_no.value)
-            ):
-                show_snackbar(f"Student {name.value} updated successfully!")
-                clear_fields()
-                student_id.disabled = False
-                add_button.visible = True
-                update_button.visible = False
-                load_students()
-            else:
-                show_snackbar("Failed to update student", "red")
-        except ValueError:
-            show_snackbar("Invalid hostel ID or room number", "red")
-
-    def delete_student(student_id_val):
-        def confirm_delete(e):
-            if Student.delete(student_id_val):
-                show_snackbar("Student deleted successfully!")
-                load_students()
-            else:
-                show_snackbar("Failed to delete student", "red")
-            dialog.open = False
-            page.update()
-
-        dialog = ft.AlertDialog(
-            modal=True,
-            title=ft.Text("Confirm Delete"),
-            content=ft.Text("Are you sure you want to delete this student?"),
+    def delete_student(student_id):
+        confirmation = ft.AlertDialog(
+            title=ft.Text("Delete Student?"),
+            content=ft.Text(f"Are you sure you want to delete student {student_id}?"),
             actions=[
-                ft.TextButton("Cancel", on_click=lambda e: setattr(dialog, 'open', False)),
-                ft.TextButton("Delete", on_click=confirm_delete),
-            ],
+                ft.TextButton("Cancel", on_click=lambda e: page.close_alert_dialog()),
+                ft.TextButton("Confirm", on_click=lambda e: confirm_delete(student_id)),
+            ]
         )
-        page.dialog = dialog
-        dialog.open = True
+        page.add(confirmation)
         page.update()
 
-    # Buttons
-    add_button = ft.ElevatedButton(
-        text="Add Student",
-        on_click=add_student,
-        style=ft.ButtonStyle(
-            color="white",
-            bgcolor="blue",
-            padding=20,
-        ),
-    )
+    def confirm_delete(student_id):
+        result = Student.delete(student_id)
+        if result:
+            show_snackbar(f"Student {student_id} deleted successfully!")
+            load_students()
+        else:
+            show_snackbar("Failed to delete student", "red")
+        page.close_alert_dialog()
 
-    update_button = ft.ElevatedButton(
-        text="Update Student",
-        on_click=update_student,
-        visible=False,
-        style=ft.ButtonStyle(
-            color="white",
-            bgcolor="green",
-            padding=20,
-        ),
-    )
-
-    # Layout
-    page.add(
-        ft.Column([
-            ft.Container(
-                content=ft.Text(
-                    "Hostel Management System",
-                    size=30,
-                    weight="bold",
-                ),
-                padding=20,
-            ),
-            ft.Row(
-                [
-                    ft.Container(
-                        content=ft.Column(
-                            [
-                                student_id,
-                                name,
-                                course,
-                                mess_plan,
-                                laundry_plan,
-                                hostel_id,
-                                room_no,
-                                ft.Row(
-                                    [add_button, update_button],
-                                    alignment=ft.MainAxisAlignment.START,
-                                ),
-                            ],
-                            spacing=20,
-                        ),
-                        padding=20,
-                        border=ft.border.all(2, "grey"),
-                        border_radius=10,
-                    ),
-                ],
-                alignment=ft.MainAxisAlignment.CENTER,
-            ),
-            ft.Container(
-                content=students_table,
-                padding=20,
-            ),
-        ])
-    )
-
-    # Initial load
     load_students()
 
-if __name__ == "__main__":
-    ft.app(target=main, view=ft.AppView.WEB_BROWSER)
+    # Action buttons
+    add_button = ft.ElevatedButton("Add Student", on_click=add_student)
+
+    page.add(
+        student_id,
+        name,
+        course,
+        mess_plan,
+        laundry_plan,
+        hostel_id,
+        room_no,
+        add_button,
+        students_table,
+    )
+    page.update()
+ft.app(target=main, view=ft.AppView.WEB_BROWSER)    

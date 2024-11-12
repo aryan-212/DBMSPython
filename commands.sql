@@ -4,6 +4,7 @@ DROP TABLE IF EXISTS FEE;
 DROP TABLE IF EXISTS EMPLOYEE;
 DROP TABLE IF EXISTS HOSTEL_SERVICE;
 DROP TABLE IF EXISTS HOSTEL;
+DROP TABLE IF EXISTS ROOM_OCCUPANCY;
 
 CREATE TABLE IF NOT EXISTS HOSTEL (
     hostel_id INT AUTO_INCREMENT PRIMARY KEY,
@@ -48,6 +49,13 @@ CREATE TABLE IF NOT EXISTS HOSTEL_SERVICE (
     details TEXT
 );
 
+CREATE TABLE IF NOT EXISTS ROOM_OCCUPANCY (
+    room_no INT PRIMARY KEY,
+    current_occupancy INT DEFAULT 0,
+    FOREIGN KEY (room_no) REFERENCES ROOM(room_no)
+);
+
+
 -- Insert sample data
 INSERT INTO HOSTEL (name) VALUES 
 ('Alpha Hostel'),
@@ -88,3 +96,6 @@ INSERT INTO HOSTEL_SERVICE (service_id, service_type, details) VALUES
 ('SVC003', 'Housekeeping', 'Daily room cleaning services'),
 ('SVC004', 'Security', '24/7 CCTV and security guard service'),
 ('SVC005', 'Cafeteria', 'Cafeteria provides three meals a day');
+
+INSERT INTO ROOM_OCCUPANCY (room_no, current_occupancy) 
+SELECT room_no, 0 FROM ROOM;
