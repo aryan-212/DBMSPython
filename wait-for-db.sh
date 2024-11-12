@@ -1,10 +1,14 @@
-#!/bin/sh
-# wait-for-db.sh
+#!/usr/bin/env bash
+# wait-for-it.sh
 
-host="$1"
+host=$1
 shift
+cmd="$@"
+
 until nc -z "$host" 3306; do
   echo "Waiting for MySQL..."
-  sleep 2
+  sleep 1
 done
-exec "$@"
+
+echo "MySQL is up - executing command"
+exec $cmd

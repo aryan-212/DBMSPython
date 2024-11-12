@@ -5,32 +5,32 @@ services:
     image: mariadb:latest
     container_name: hostel_mariadb
     environment:
-      MYSQL_ROOT_PASSWORD: root_password   # Set your root password here
-      MYSQL_DATABASE: HostelManagement     # Name of the database to create
-      MYSQL_USER: user                     # Create a non-root user
-      MYSQL_PASSWORD: user_password        # Non-root user password
+      MYSQL_ROOT_PASSWORD: root_password
+      MYSQL_DATABASE: HostelManagement
+      MYSQL_USER: user
+      MYSQL_PASSWORD: user_password
     volumes:
-      - db_data:/var/lib/mysql             # Persist data between container restarts
-      - ./commands.sql:/docker-entrypoint-initdb.d/commands.sql # Initialize DB with the SQL file
+      - db_data:/var/lib/mysql
+      - ./commands.sql:/docker-entrypoint-initdb.d/commands.sql
     ports:
-      - "4121:3306"                        # Map external port 4121 to internal port 3306
+      - "4121:3306"
 
   app:
     build: .
     container_name: hostel_app
     depends_on:
-      - db                                 # Ensure db is started before the app
+      - db
     environment:
-      DB_HOST: db                          # Database host, corresponds to the service name
-      DB_PORT: 3306                        # Internal port for MariaDB
+      DB_HOST: db
+      DB_PORT: 3306
       DB_NAME: HostelManagement
-      DB_USER: user                        # Non-root user specified
+      DB_USER: user
       DB_PASSWORD: user_password
     volumes:
-      - .:/app                             # Mount the current directory to /app in the container
-    command: python App.py                 # Command to run the Python app
+      - .:/app
+    command: ["/bin/bash", "-c", "./wait-for-db.sh db:3306 -- python App.py & sleep 5 && streamlit run main.py"]
     ports:
-      - "8000:8000"                        # Expose the app port if needed for external access
+      - "8000:8000"
 
 volumes:
   db_data:
