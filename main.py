@@ -1,328 +1,300 @@
-import os
+import streamlit as st
 import mysql.connector
-from mysql.connector import Error
-import flet as ft
+import pandas as pd
+import os
 from datetime import datetime
+import plotly.express as px
+from dotenv import load_dotenv
 
-class DatabaseManager:
-    @staticmethod
-    def create_connection():
-        try:
-            connection = mysql.connector.connect(
-                host=os.getenv("DB_HOST", "127.0.0.1"),
-                port=os.getenv("DB_PORT", 4121),
-                user=os.getenv("DB_USER", "root"),
-                password=os.getenv("DB_PASSWORD", "root_password"),
-                database=os.getenv("DB_NAME", "HostelManagement"),
-                charset='utf8mb4',
-                collation='utf8mb4_unicode_ci'
-            )
-            return connection
-        except Error as e:
-            print(f"Error: '{e}'")
-        return None
+load_dotenv()
 
-    @staticmethod
-    def execute_query(query, values=None, fetch=False):
-        connection = DatabaseManager.create_connection()
-        result = None
-        if connection:
-            try:
-                with connection.cursor() as cursor:
-                    if values:
-                        cursor.execute(query, values)
-                    else:
-                        cursor.execute(query)
-                    
-                    if fetch:
-                        result = cursor.fetchall()
-                    else:
-                        connection.commit()
-                        result = True
-            except Error as e:
-                print(f"Database error: {e}")
-                result = False
-            finally:
-                connection.close()
-        return result
-
-class Student:
-    @staticmethod
-    def fetch_all():
-        query = "SELECT * FROM STUDENT ORDER BY student_id;"
-        return DatabaseManager.execute_query(query, fetch=True)
-
-    @staticmethod
-    def insert(student_id, name, course, mess_plan, laundry_plan, hostel_id, room_no):
-        query = """
-        INSERT INTO STUDENT (student_id, name, course, mess_plan, laundry_plan, hostel_id, room_no) 
-        VALUES (%s, %s, %s, %s, %s, %s, %s);
-        """
-        values = (student_id, name, course, mess_plan, laundry_plan, hostel_id, room_no)
-        return DatabaseManager.execute_query(query, values)
-
-    @staticmethod
-    def update(student_id, name, course, mess_plan, laundry_plan, hostel_id, room_no):
-        query = """
-        UPDATE STUDENT 
-        SET name=%s, course=%s, mess_plan=%s, laundry_plan=%s, hostel_id=%s, room_no=%s 
-        WHERE student_id=%s;
-        """
-        values = (name, course, mess_plan, laundry_plan, hostel_id, room_no, student_id)
-        return DatabaseManager.execute_query(query, values)
-
-    @staticmethod
-    def delete(student_id):
-        query = "DELETE FROM STUDENT WHERE student_id = %s;"
-        return DatabaseManager.execute_query(query, (student_id,))
-
-def main(page: ft.Page):
-    page.title = "Hostel Management System"
-    page.theme_mode = ft.ThemeMode.LIGHT
-    page.window_width = 1200
-    page.window_height = 800
-    page.padding = 20
-
-    # State management
-    current_student = None
-    
-    # Input fields
-    student_id = ft.TextField(
-        label="Student ID",
-        width=200,
-        height=50,
-        border_radius=10,
-    )
-    name = ft.TextField(
-        label="Name",
-        width=200,
-        height=50,
-        border_radius=10,
-    )
-    course = ft.TextField(
-        label="Course",
-        width=200,
-        height=50,
-        border_radius=10,
-    )
-    mess_plan = ft.Dropdown(
-        label="Mess Plan",
-        width=200,
-        options=[
-            ft.dropdown.Option("Regular"),
-            ft.dropdown.Option("Premium"),
-            ft.dropdown.Option("Special Diet"),
-        ],
-    )
-    laundry_plan = ft.Dropdown(
-        label="Laundry Plan",
-        width=200,
-        options=[
-            ft.dropdown.Option("Basic"),
-            ft.dropdown.Option("Premium"),
-            ft.dropdown.Option("None"),
-        ],
-    )
-    hostel_id = ft.TextField(
-        label="Hostel ID",
-        width=200,
-        height=50,
-        border_radius=10,
-    )
-    room_no = ft.TextField(
-        label="Room No",
-        width=200,
-        height=50,
-        border_radius=10,
+def get_database_connection():
+    return mysql.connector.connect(
+        host=os.getenv("DB_HOST", "127.0.0.1"),
+        port=int(os.getenv("DB_PORT", 4121)),
+        user=os.getenv("DB_USER", "root"),
+        password=os.getenv("DB_PASSWORD", "root_password"),
+        database=os.getenv("DB_NAME", "HostelManagement"),
+        charset='utf8mb4',
+        collation='utf8mb4_unicode_ci'
     )
 
-    # DataTable for students
-    def create_data_table():
-        return ft.DataTable(
-            border=ft.border.all(2, "grey"),
-            border_radius=10,
-            vertical_lines=ft.border.BorderSide(1, "grey"),
-            horizontal_lines=ft.border.BorderSide(1, "grey"),
-            columns=[
-                ft.DataColumn(ft.Text("Student ID")),
-                ft.DataColumn(ft.Text("Name")),
-                ft.DataColumn(ft.Text("Course")),
-                ft.DataColumn(ft.Text("Mess Plan")),
-                ft.DataColumn(ft.Text("Laundry Plan")),
-                ft.DataColumn(ft.Text("Hostel ID")),
-                ft.DataColumn(ft.Text("Room No")),
-                ft.DataColumn(ft.Text("Actions")),
-            ],
-        )
+def init_session_state():
+    if 'page' not in st.session_state:
+        st.session_state.page = 'Dashboard'
 
-    students_table = create_data_table()
-
-    # Snackbar for notifications
-    def show_snackbar(message, color="green"):
-        page.snack_bar = ft.SnackBar(
-            content=ft.Text(message),
-            bgcolor=color,
-        )
-        page.snack_bar.open = True
-        page.update()
-
-    # Clear form fields
-    def clear_fields():
-        student_id.value = ""
-        name.value = ""
-        course.value = ""
-        mess_plan.value = None
-        laundry_plan.value = None
-        hostel_id.value = ""
-        room_no.value = ""
-        page.update()
-
-    # Validate input fields
-    def validate_fields():
-        if not all([
-            student_id.value, name.value, course.value,
-            mess_plan.value, laundry_plan.value,
-            hostel_id.value, room_no.value
-        ]):
-            show_snackbar("Please fill all fields", "red")
-            return False
-        return True
-
-    # Load students into table
-    def load_students():
-        students_table.rows.clear()
-        students = Student.fetch_all()
-        
-        for s in students:
-            students_table.rows.append(
-                ft.DataRow(
-                    cells=[
-                        ft.DataCell(ft.Text(s[0])),
-                        ft.DataCell(ft.Text(s[1])),
-                        ft.DataCell(ft.Text(s[2])),
-                        ft.DataCell(ft.Text(s[3])),
-                        ft.DataCell(ft.Text(s[4])),
-                        ft.DataCell(ft.Text(s[5])),
-                        ft.DataCell(ft.Text(s[6])),
-                        ft.DataCell(
-                            ft.Row(
-                                [
-                                    ft.IconButton(
-                                        icon=ft.icons.EDIT,
-                                        icon_color="blue",
-                                        tooltip="Edit",
-                                        data=s,
-                                        on_click=lambda e: edit_student(e.control.data),
-                                    ),
-                                    ft.IconButton(
-                                        icon=ft.icons.DELETE,
-                                        icon_color="red",
-                                        tooltip="Delete",
-                                        data=s[0],
-                                        on_click=lambda e: delete_student(e.control.data),
-                                    ),
-                                ]
-                            )
-                        ),
-                    ]
-                )
-            )
-        page.update()
-
-    # CRUD Operations
-    def add_student(e):
-        if not validate_fields():
-            return
-        
-        try:
-            # Step 1: Check the number of students already assigned to the room
-            student_count_query = """
-            SELECT COUNT(*) 
-            FROM STUDENT 
-            WHERE room_no = %s;
-            """
-            student_count = DatabaseManager.execute_query(student_count_query, (room_no.value,), fetch=True)
-            
-            # Step 2: Get the room's capacity
-            room_capacity_query = """
-            SELECT capacity 
-            FROM ROOM 
-            WHERE room_no = %s;
-            """
-            room_capacity = DatabaseManager.execute_query(room_capacity_query, (room_no.value,), fetch=True)
-
-            # Step 3: Compare the current occupancy with room capacity
-            if student_count and room_capacity:
-                if student_count[0][0] >= room_capacity[0][0]:
-                    # If room is full, show error message
-                    show_snackbar(f"Room {room_no.value} is full. No available space.", "red")
-                    return False
-
-            # Step 4: Insert student if space is available
-            insert_student_query = """
-            INSERT INTO STUDENT (student_id, name, course, mess_plan, laundry_plan, hostel_id, room_no) 
-            VALUES (%s, %s, %s, %s, %s, %s, %s);
-            """
-            values = (student_id.value, name.value, course.value, mess_plan.value, laundry_plan.value, hostel_id.value, room_no.value)
-            
-            if DatabaseManager.execute_query(insert_student_query, values):
-                show_snackbar(f"Student {name.value} added successfully!")
-                return True
-            else:
-                show_snackbar("Failed to add student", "red")
-                return False
-        except Exception as e:
-            show_snackbar(f"Error: {e}", "red")
-            return False
-
-    def edit_student(student_data):
-        student_id.value = student_data[0]
-        name.value = student_data[1]
-        course.value = student_data[2]
-        mess_plan.value = student_data[3]
-        laundry_plan.value = student_data[4]
-        hostel_id.value = student_data[5]
-        room_no.value = student_data[6]
-
-        # Update button will now act as "Save"
-        page.update()
-
-    def delete_student(student_id):
-        confirmation = ft.AlertDialog(
-            title=ft.Text("Delete Student?"),
-            content=ft.Text(f"Are you sure you want to delete student {student_id}?"),
-            actions=[
-                ft.TextButton("Cancel", on_click=lambda e: page.close_alert_dialog()),
-                ft.TextButton("Confirm", on_click=lambda e: confirm_delete(student_id)),
-            ]
-        )
-        page.add(confirmation)
-        page.update()
-
-    def confirm_delete(student_id):
-        result = Student.delete(student_id)
-        if result:
-            show_snackbar(f"Student {student_id} deleted successfully!")
-            load_students()
+def run_query(query, params=None):
+    conn = get_database_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        if params:
+            cursor.execute(query, params)
         else:
-            show_snackbar("Failed to delete student", "red")
-        page.close_alert_dialog()
+            cursor.execute(query)
+        if query.strip().upper().startswith('SELECT'):
+            result = cursor.fetchall()
+            return result
+        conn.commit()
+        return True
+    except Exception as e:
+        st.error(f"Database error: {str(e)}")
+        return False
+    finally:
+        cursor.close()
+        conn.close()
 
-    load_students()
+def dashboard():
+    st.title("Hostel Management Dashboard")
+    
+    col1, col2, col3 = st.columns(3)
+    
+    # Total Students
+    total_students = run_query("SELECT COUNT(*) as count FROM STUDENT")[0]['count']
+    col1.metric("Total Students", total_students)
+    
+    # Available Rooms
+    occupied_rooms = run_query("SELECT COUNT(DISTINCT room_no) as count FROM STUDENT")[0]['count']
+    total_rooms = run_query("SELECT COUNT(*) as count FROM ROOM")[0]['count']
+    col2.metric("Available Rooms", total_rooms - occupied_rooms)
+    
+    # Pending Fees
+    pending_fees = run_query("SELECT COUNT(*) as count FROM FEE WHERE status = 'Pending'")[0]['count']
+    col3.metric("Pending Fees", pending_fees)
+    
+    # Room Occupancy Chart
+    room_data = run_query("""
+        SELECT r.type, COUNT(*) as count 
+        FROM ROOM r 
+        GROUP BY r.type
+    """)
+    if room_data:
+        df_rooms = pd.DataFrame(room_data)
+        fig = px.pie(df_rooms, values='count', names='type', title='Room Distribution')
+        st.plotly_chart(fig)
 
-    # Action buttons
-    add_button = ft.ElevatedButton("Add Student", on_click=add_student)
+def manage_students():
+    st.header("Student Management")
+    
+    tab1, tab2, tab3 = st.tabs(["View Students", "Add Student", "Update/Delete Student"])
+    
+    with tab1:
+        students = run_query("SELECT * FROM STUDENT")
+        if students:
+            st.dataframe(pd.DataFrame(students))
+    
+    with tab2:
+        with st.form("add_student_form"):
+            student_id = st.text_input("Student ID")
+            name = st.text_input("Name")
+            course = st.text_input("Course")
+            mess_plan = st.selectbox("Mess Plan", ["Standard", "Premium"])
+            laundry_plan = st.selectbox("Laundry Plan", ["Basic", "Standard", "Premium"])
+            
+            hostels = run_query("SELECT hostel_id, name FROM HOSTEL")
+            hostel_dict = {h['name']: h['hostel_id'] for h in hostels}
+            hostel = st.selectbox("Hostel", list(hostel_dict.keys()))
+            
+            rooms = run_query("SELECT room_no, type FROM ROOM")
+            room_dict = {f"Room {r['room_no']} ({r['type']})": r['room_no'] for r in rooms}
+            room = st.selectbox("Room", list(room_dict.keys()))
+            
+            if st.form_submit_button("Add Student"):
+                query = """
+                INSERT INTO STUDENT (student_id, name, course, mess_plan, laundry_plan, hostel_id, room_no)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                """
+                params = (student_id, name, course, mess_plan, laundry_plan, 
+                         hostel_dict[hostel], room_dict[room])
+                if run_query(query, params):
+                    st.success("Student added successfully!")
+                    st.experimental_rerun()
+    
+    with tab3:
+        student_to_update = st.selectbox(
+            "Select Student to Update/Delete",
+            [s['student_id'] + " - " + s['name'] for s in run_query("SELECT student_id, name FROM STUDENT")]
+        )
+        if student_to_update:
+            student_id = student_to_update.split(" - ")[0]
+            student = run_query("SELECT * FROM STUDENT WHERE student_id = %s", (student_id,))[0]
+            
+            with st.form("update_student_form"):
+                name = st.text_input("Name", student['name'])
+                course = st.text_input("Course", student['course'])
+                mess_plan = st.selectbox("Mess Plan", ["Standard", "Premium"], 
+                                       ["Standard", "Premium"].index(student['mess_plan']))
+                laundry_plan = st.selectbox("Laundry Plan", ["Basic", "Standard", "Premium"],
+                                          ["Basic", "Standard", "Premium"].index(student['laundry_plan']))
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.form_submit_button("Update Student"):
+                        query = """
+                        UPDATE STUDENT 
+                        SET name = %s, course = %s, mess_plan = %s, laundry_plan = %s
+                        WHERE student_id = %s
+                        """
+                        params = (name, course, mess_plan, laundry_plan, student_id)
+                        if run_query(query, params):
+                            st.success("Student updated successfully!")
+                            st.experimental_rerun()
+                
+                with col2:
+                    if st.form_submit_button("Delete Student", type="primary"):
+                        if run_query("DELETE FROM STUDENT WHERE student_id = %s", (student_id,)):
+                            st.success("Student deleted successfully!")
+                            st.experimental_rerun()
 
-    page.add(
-        student_id,
-        name,
-        course,
-        mess_plan,
-        laundry_plan,
-        hostel_id,
-        room_no,
-        add_button,
-        students_table,
+def manage_rooms():
+    st.header("Room Management")
+    
+    tab1, tab2, tab3 = st.tabs(["View Rooms", "Add Room", "Update Room"])
+    
+    with tab1:
+        rooms = run_query("""
+            SELECT r.*, COUNT(s.student_id) as occupants
+            FROM ROOM r
+            LEFT JOIN STUDENT s ON r.room_no = s.room_no
+            GROUP BY r.room_no
+        """)
+        if rooms:
+            st.dataframe(pd.DataFrame(rooms))
+    
+    with tab2:
+        with st.form("add_room_form"):
+            room_no = st.number_input("Room Number", min_value=1)
+            capacity = st.number_input("Capacity", min_value=1, max_value=4)
+            room_type = st.selectbox("Room Type", ["Single", "Double", "Triple", "Dormitory"])
+            
+            if st.form_submit_button("Add Room"):
+                query = "INSERT INTO ROOM (room_no, capacity, type) VALUES (%s, %s, %s)"
+                params = (room_no, capacity, room_type)
+                if run_query(query, params):
+                    st.success("Room added successfully!")
+                    st.experimental_rerun()
+
+def manage_employees():
+    st.header("Employee Management")
+
+    # Tabs for different operations
+    tab1, tab2, tab3 = st.tabs(["View Employees", "Add Employee", "Update Employee"])
+
+    # Tab 1: View Employees
+    with tab1:
+        employees = run_query("SELECT * FROM EMPLOYEE")
+        if employees:
+            st.dataframe(pd.DataFrame(employees))
+
+    # Tab 2: Add Employee
+    with tab2:
+        with st.form("add_employee_form"):
+            emp_id = st.text_input("Employee ID")
+            name = st.text_input("Name")
+            activity = st.selectbox("Activity", ["Cleaning", "Cooking", "Security", "Maintenance", "Admin"])
+            service = st.selectbox("Service", ["Housekeeping", "Cafeteria", "Guarding", "Plumbing", "Reception"])
+
+            # Button to add the employee
+            if st.form_submit_button("Add Employee"):
+                query = "INSERT INTO EMPLOYEE (emp_id, name, activity, service) VALUES (%s, %s, %s, %s)"
+                params = (emp_id, name, activity, service)
+                if run_query(query, params):
+                    st.success("Employee added successfully!")
+                    st.experimental_rerun()
+
+    # Tab 3: Update Employee
+    with tab3:
+        employees = run_query("SELECT emp_id, name FROM EMPLOYEE")
+        emp_dict = {f"{e['name']} ({e['emp_id']})": e['emp_id'] for e in employees}
+
+        if emp_dict:
+            emp_to_update = st.selectbox("Select Employee to Update", list(emp_dict.keys()))
+            if emp_to_update:
+                emp_id = emp_dict[emp_to_update]
+                employee = run_query("SELECT * FROM EMPLOYEE WHERE emp_id = %s", (emp_id,))[0]
+
+                with st.form("update_employee_form"):
+                    name = st.text_input("Name", value=employee['name'])
+                    activity = st.selectbox(
+                        "Activity",
+                        ["Cleaning", "Cooking", "Security", "Maintenance", "Admin"],
+                        index=["Cleaning", "Cooking", "Security", "Maintenance", "Admin"].index(employee['activity'])
+                    )
+                    service = st.selectbox(
+                        "Service",
+                        ["Housekeeping", "Cafeteria", "Guarding", "Plumbing", "Reception"],
+                        index=["Housekeeping", "Cafeteria", "Guarding", "Plumbing", "Reception"].index(employee['service'])
+                    )
+
+                    # Button to update the employee
+                    if st.form_submit_button("Update Employee"):
+                        query = """
+                        UPDATE EMPLOYEE 
+                        SET name = %s, activity = %s, service = %s 
+                        WHERE emp_id = %s
+                        """
+                        params = (name, activity, service, emp_id)
+                        if run_query(query, params):
+                            st.success("Employee updated successfully!")
+                            st.experimental_rerun()
+
+def manage_fees():
+    st.header("Fee Management")
+    
+    tab1, tab2 = st.tabs(["View Fees", "Update Fee Status"])
+    
+    with tab1:
+        fees = run_query("""
+            SELECT f.*, s.name as student_name
+            FROM FEE f
+            JOIN STUDENT s ON f.fee_id = CONCAT('F', LPAD(SUBSTRING(s.student_id, 2), 3, '0'))
+        """)
+        if fees:
+            st.dataframe(pd.DataFrame(fees))
+    
+    with tab2:
+        fee_to_update = st.selectbox(
+            "Select Fee to Update",
+            [f"{f['fee_id']} - {f['student_name']} (₹{f['amount']})" for f in fees]
+        )
+        if fee_to_update:
+            fee_id = fee_to_update.split(" - ")[0]
+            with st.form("update_fee_form"):
+                status = st.selectbox("Status", ["Pending", "Paid", "Overdue"])
+                if st.form_submit_button("Update Status"):
+                    query = "UPDATE FEE SET status = %s WHERE fee_id = %s"
+                    params = (status, fee_id)
+                    if run_query(query, params):
+                        st.success("Fee status updated successfully!")
+                        st.experimental_rerun()
+
+def main():
+    st.set_page_config(
+        page_title="Hostel Management System",
+        page_icon="🏢",
+        layout="wide"
     )
-    page.update()
-ft.app(target=main, view=ft.AppView.WEB_BROWSER)    
+    
+    init_session_state()
+    
+    with st.sidebar:
+        st.title("🏢 Hostel Management")
+        selected = st.radio(
+            "Navigate to",
+            ["Dashboard", "Students", "Rooms", "Fees", "Employees"]
+        )
+        st.session_state.page = selected
+
+    if st.session_state.page == "Dashboard":
+        dashboard()
+    elif st.session_state.page == "Students":
+        manage_students()
+    elif st.session_state.page == "Rooms":
+        manage_rooms()
+    elif st.session_state.page == "Fees":
+        manage_fees()
+    elif st.session_state.page == "Employees":
+        manage_employees()
+
+
+if __name__ == "__main__":
+    main()
