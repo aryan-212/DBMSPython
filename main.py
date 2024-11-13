@@ -6,6 +6,11 @@ from datetime import datetime
 import plotly.express as px
 from dotenv import load_dotenv
 
+# st.set_page_config(
+#         page_title="Hostel Management System",
+#         page_icon="🏢",
+#         layout="wide"
+#     )
 load_dotenv()
 
 def get_database_connection():
@@ -150,6 +155,7 @@ def manage_rooms():
     
     tab1, tab2, tab3 = st.tabs(["View Rooms", "Add Room", "Update Room"])
     
+    # View Rooms tab
     with tab1:
         rooms = run_query("""
             SELECT r.*, COUNT(s.student_id) as occupants
@@ -160,6 +166,7 @@ def manage_rooms():
         if rooms:
             st.dataframe(pd.DataFrame(rooms))
     
+    # Add Room tab
     with tab2:
         with st.form("add_room_form"):
             room_no = st.number_input("Room Number", min_value=1)
@@ -171,8 +178,26 @@ def manage_rooms():
                 params = (room_no, capacity, room_type)
                 if run_query(query, params):
                     st.success("Room added successfully!")
-                    st.rerun
-
+                    st.rerun()
+    
+    # Update Room tab
+    with tab3:
+        rooms = run_query("SELECT room_no, capacity, type FROM ROOM")
+        room_options = {f"Room {r['room_no']}": r for r in rooms}
+        selected_room = st.selectbox("Select Room to Update", list(room_options.keys()))
+        
+        if selected_room:
+            room_details = room_options[selected_room]
+            new_capacity = st.number_input("New Capacity", min_value=1, max_value=4, value=room_details["capacity"])
+            new_type = st.selectbox("New Room Type", ["Single", "Double", "Triple", "Dormitory"], index=["Single", "Double", "Triple", "Dormitory"].index(room_details["type"]))
+            
+            if st.button("Update Room"):
+                query = "UPDATE ROOM SET capacity = %s, type = %s WHERE room_no = %s"
+                params = (new_capacity, new_type, room_details["room_no"])
+                if run_query(query, params):
+                    st.success("Room updated successfully!")
+                    st.rerun()
+1
 def manage_employees():
     st.header("Employee Management")
 
@@ -268,11 +293,7 @@ def manage_fees():
                         st.rerun
 
 def main():
-    st.set_page_config(
-        page_title="Hostel Management System",
-        page_icon="🏢",
-        layout="wide"
-    )
+    
     
     init_session_state()
     
