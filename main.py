@@ -94,26 +94,52 @@ def manage_students():
             course = st.text_input("Course")
             mess_plan = st.selectbox("Mess Plan", ["Standard", "Premium"])
             laundry_plan = st.selectbox("Laundry Plan", ["Basic", "Standard", "Premium"])
-            
+
+            # Fetch and display available hostels
             hostels = run_query("SELECT hostel_id, name FROM HOSTEL")
             hostel_dict = {h['name']: h['hostel_id'] for h in hostels}
             hostel = st.selectbox("Hostel", list(hostel_dict.keys()))
-            
+
+            # Fetch and display available rooms
             rooms = run_query("SELECT room_no, type FROM ROOM")
             room_dict = {f"Room {r['room_no']} ({r['type']})": r['room_no'] for r in rooms}
             room = st.selectbox("Room", list(room_dict.keys()))
-            
+
+            # Add Student button
             if st.form_submit_button("Add Student"):
-                query = """
-                INSERT INTO STUDENT (student_id, name, course, mess_plan, laundry_plan, hostel_id, room_no)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
-                """
-                params = (student_id, name, course, mess_plan, laundry_plan, 
-                         hostel_dict[hostel], room_dict[room])
-                if run_query(query, params):
-                    st.success("Student added successfully!")
-                    st.rerun()
-    
+                # Check current occupancy and capacity of the selected room
+                room_no = room_dict[room]
+                current_occupancy_result = run_query(
+                    "SELECT current_occupancy FROM ROOM_OCCUPANCY WHERE room_no = %s", (room_no,)
+                )
+                print(current_occupancy_result)
+                capacity_result = run_query(
+                    "SELECT capacity FROM ROOM WHERE room_no = %s", (room_no,)
+                )
+                print(capacity_result)
+
+                current_occupancy = current_occupancy_result[0]['current_occupancy'] if current_occupancy_result else 0
+                capacity = capacity_result[0]['capacity'] if capacity_result else 0
+
+                # Check if the room is full
+                if current_occupancy >= capacity:
+                    st.error(f"Room {room_no} is already full. Please choose another room.")
+                else:
+                    print(capacity-current_occupancy)
+                    print(capacity-current_occupancy)
+
+                    # Proceed to add the student if there's space
+                    query = """
+                    INSERT INTO STUDENT (student_id, name, course, mess_plan, laundry_plan, hostel_id, room_no)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    """
+                    params = (student_id, name, course, mess_plan, laundry_plan, hostel_dict[hostel], room_no)
+                    
+                    # Insert student and update occupancy
+                    if run_query(query, params):
+                        st.success("Student added successfully!")
+                        st.rerun()
+
     with tab3:
         student_to_update = st.selectbox(
             "Select Student to Update/Delete",
@@ -197,7 +223,7 @@ def manage_rooms():
                 if run_query(query, params):
                     st.success("Room updated successfully!")
                     st.rerun()
-1
+
 def manage_employees():
     st.header("Employee Management")
 
