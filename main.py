@@ -107,7 +107,7 @@ def manage_students():
                          hostel_dict[hostel], room_dict[room])
                 if run_query(query, params):
                     st.success("Student added successfully!")
-                    st.experimental_rerun()
+                    st.rerun()
     
     with tab3:
         student_to_update = st.selectbox(
@@ -137,13 +137,13 @@ def manage_students():
                         params = (name, course, mess_plan, laundry_plan, student_id)
                         if run_query(query, params):
                             st.success("Student updated successfully!")
-                            st.experimental_rerun()
+                            st.rerun
                 
                 with col2:
                     if st.form_submit_button("Delete Student", type="primary"):
                         if run_query("DELETE FROM STUDENT WHERE student_id = %s", (student_id,)):
                             st.success("Student deleted successfully!")
-                            st.experimental_rerun()
+                            st.rerun
 
 def manage_rooms():
     st.header("Room Management")
@@ -171,7 +171,7 @@ def manage_rooms():
                 params = (room_no, capacity, room_type)
                 if run_query(query, params):
                     st.success("Room added successfully!")
-                    st.experimental_rerun()
+                    st.rerun
 
 def manage_employees():
     st.header("Employee Management")
@@ -199,7 +199,7 @@ def manage_employees():
                 params = (emp_id, name, activity, service)
                 if run_query(query, params):
                     st.success("Employee added successfully!")
-                    st.experimental_rerun()
+                    st.rerun
 
     # Tab 3: Update Employee
     with tab3:
@@ -235,7 +235,7 @@ def manage_employees():
                         params = (name, activity, service, emp_id)
                         if run_query(query, params):
                             st.success("Employee updated successfully!")
-                            st.experimental_rerun()
+                            st.rerun
 
 def manage_fees():
     st.header("Fee Management")
@@ -265,7 +265,7 @@ def manage_fees():
                     params = (status, fee_id)
                     if run_query(query, params):
                         st.success("Fee status updated successfully!")
-                        st.experimental_rerun()
+                        st.rerun
 
 def main():
     st.set_page_config(

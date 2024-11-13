@@ -1,3 +1,4 @@
+-- Ensure tables are dropped if they exist
 DROP TABLE IF EXISTS STUDENT;
 DROP TABLE IF EXISTS ROOM;
 DROP TABLE IF EXISTS FEE;
@@ -6,6 +7,7 @@ DROP TABLE IF EXISTS HOSTEL_SERVICE;
 DROP TABLE IF EXISTS HOSTEL;
 DROP TABLE IF EXISTS ROOM_OCCUPANCY;
 
+-- Create the tables again
 CREATE TABLE IF NOT EXISTS HOSTEL (
     hostel_id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(255) NOT NULL
@@ -55,6 +57,44 @@ CREATE TABLE IF NOT EXISTS ROOM_OCCUPANCY (
     FOREIGN KEY (room_no) REFERENCES ROOM(room_no)
 );
 
+INSERT INTO ROOM_OCCUPANCY (room_no, current_occupancy)
+SELECT room_no, 0 FROM ROOM;
+
+-- Update ROOM_OCCUPANCY table with correct occupancy count
+UPDATE ROOM_OCCUPANCY ro
+JOIN STUDENT s ON ro.room_no = s.room_no
+SET ro.current_occupancy = (
+    SELECT COUNT(*) 
+    FROM STUDENT 
+    WHERE room_no = ro.room_no
+);
+
+
+DELIMITER //
+
+CREATE TRIGGER after_student_insert
+AFTER INSERT ON STUDENT
+FOR EACH ROW
+BEGIN
+    UPDATE ROOM_OCCUPANCY 
+    SET current_occupancy = current_occupancy + 1
+    WHERE room_no = NEW.room_no;
+END //
+
+-- Create trigger to update room occupancy after student delete
+CREATE TRIGGER after_student_delete
+AFTER DELETE ON STUDENT
+FOR EACH ROW
+BEGIN
+    UPDATE ROOM_OCCUPANCY 
+    SET current_occupancy = current_occupancy - 1
+    WHERE room_no = OLD.room_no;
+END //
+
+DELIMITER ;
+
+-- Initial population of ROOM_OCCUPANCY table
+
 
 -- Insert sample data
 INSERT INTO HOSTEL (name) VALUES 
@@ -97,5 +137,18 @@ INSERT INTO HOSTEL_SERVICE (service_id, service_type, details) VALUES
 ('SVC004', 'Security', '24/7 CCTV and security guard service'),
 ('SVC005', 'Cafeteria', 'Cafeteria provides three meals a day');
 
-INSERT INTO ROOM_OCCUPANCY (room_no, current_occupancy) 
+-- Create trigger to update room occupancy after student insert
+-- Insert initial data into ROOM_OCCUPANCY if it's empty
+INSERT INTO ROOM_OCCUPANCY (room_no, current_occupancy)
 SELECT room_no, 0 FROM ROOM;
+
+-- Update ROOM_OCCUPANCY table with correct occupancy count
+UPDATE ROOM_OCCUPANCY ro
+JOIN STUDENT s ON ro.room_no = s.room_no
+SET ro.current_occupancy = (
+    SELECT COUNT(*) 
+    FROM STUDENT 
+    WHERE room_no = ro.room_no
+);
+
+-- Insert initial data into ROOM_OCCUPANCY if it's empty
