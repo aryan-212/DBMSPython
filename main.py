@@ -249,7 +249,7 @@ def manage_employees():
 
     # Tab 2: Add Employee
     with tab2:
-        print(run_query("CALL get_fee_details();"))
+        # print(run_query("CALL get_fee_details();"))
 
         with st.form("add_employee_form"):
             emp_id = st.text_input("Employee ID")
