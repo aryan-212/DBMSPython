@@ -17,6 +17,7 @@ def get_database_connection():
     return mysql.connector.connect(
         host=os.getenv("DB_HOST", "127.0.0.1"),
         port=int(os.getenv("DB_PORT", 4121)),
+
         user=os.getenv("DB_USER", "root"),
         password=os.getenv("DB_PASSWORD", "root_password"),
         database=os.getenv("DB_NAME", "HostelManagement"),
@@ -36,9 +37,18 @@ def run_query(query, params=None):
             cursor.execute(query, params)
         else:
             cursor.execute(query)
-        if query.strip().upper().startswith('SELECT'):
+
+        # Check if the query is a SELECT statement
+        if query.strip().upper().startswith('SELECT') or query.strip().upper().startswith('CALL'):
             result = cursor.fetchall()
+
+            # Consume any remaining result sets (if it's a stored procedure)
+            while cursor.nextset():
+                cursor.fetchall()
+
             return result
+        
+        # Commit changes if it's an INSERT, UPDATE, or DELETE query
         conn.commit()
         return True
     except Exception as e:
@@ -47,6 +57,7 @@ def run_query(query, params=None):
     finally:
         cursor.close()
         conn.close()
+
 
 def dashboard():
     st.title("Hostel Management Dashboard")
@@ -58,9 +69,9 @@ def dashboard():
     col1.metric("Total Students", total_students)
     
     # Available Rooms
-    occupied_rooms = run_query("SELECT COUNT(DISTINCT room_no) as count FROM STUDENT")[0]['count']
-    total_rooms = run_query("SELECT COUNT(*) as count FROM ROOM")[0]['count']
-    col2.metric("Available Rooms", total_rooms - occupied_rooms)
+    # occupied_rooms = run_query("SELECT COUNT(DISTINCT room_no) as count FROM STUDENT")[0]['count']
+    # total_rooms = run_query("SELECT COUNT(*) as count FROM ROOM")[0]['count']
+    # col2.metric("Available Rooms", total_rooms - occupied_rooms)
     
     # Pending Fees
     pending_fees = run_query("SELECT COUNT(*) as count FROM FEE WHERE status = 'Pending'")[0]['count']
@@ -238,6 +249,8 @@ def manage_employees():
 
     # Tab 2: Add Employee
     with tab2:
+        print(run_query("CALL get_fee_details();"))
+
         with st.form("add_employee_form"):
             emp_id = st.text_input("Employee ID")
             name = st.text_input("Name")
@@ -288,17 +301,41 @@ def manage_employees():
                             st.success("Employee updated successfully!")
                             st.rerun
 
+def call_stored_procedure(proc_name, params=None):
+    conn = get_database_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        # Call the stored procedure with parameters if provided
+        cursor.callproc(proc_name, params or [])
+        result = []
+        
+        # Fetch all the result sets returned by the stored procedure
+        for result_set in cursor.stored_results():
+            result.extend(result_set.fetchall())
+        
+        return result
+    except Exception as e:
+        st.error(f"Database error: {str(e)}")
+        return False
+    finally:
+        cursor.close()
+        conn.close()
+
+
 def manage_fees():
     st.header("Fee Management")
     
     tab1, tab2 = st.tabs(["View Fees", "Update Fee Status"])
     
     with tab1:
-        fees = run_query("""
-            SELECT f.*, s.name as student_name
-            FROM FEE f
-            JOIN STUDENT s ON f.fee_id = CONCAT('F', LPAD(SUBSTRING(s.student_id, 2), 3, '0'))
-        """)
+        # fees = run_query("""
+        #     SELECT f.*, s.name as student_name
+        #     FROM FEE f
+        #     JOIN STUDENT s ON f.fee_id = CONCAT('F', LPAD(SUBSTRING(s.student_id, 2), 3, '0'))
+        # """)
+        fees = call_stored_procedure("get_fee_details")  # Using stored procedure
+
+        
         if fees:
             st.dataframe(pd.DataFrame(fees))
     
