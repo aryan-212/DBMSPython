@@ -166,8 +166,17 @@ def manage_students():
             hostel = st.selectbox("Hostel", list(hostel_dict.keys()))
 
             # Fetch and display available rooms
-            rooms = run_query("SELECT room_no, type FROM ROOM")
+            rooms = run_query("""
+             SELECT r.room_no, r.type
+             FROM ROOM r
+            JOIN ROOM_OCCUPANCY ro ON r.room_no = ro.room_no
+             WHERE ro.current_occupancy < r.capacity
+             """)
+
+# Create a dictionary for rooms that are not full
             room_dict = {f"Room {r['room_no']} ({r['type']})": r['room_no'] for r in rooms}
+
+# Allow the user to select a room from the available options
             room = st.selectbox("Room", list(room_dict.keys()))
 
             # Add Student button
