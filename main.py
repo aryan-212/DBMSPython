@@ -12,6 +12,17 @@ from dotenv import load_dotenv
 #         layout="wide"
 #     )
 load_dotenv()
+def create_connection():
+    return mysql.connector.connect(
+        host=os.getenv("DB_HOST", "127.0.0.1"),
+        port=int(os.getenv("DB_PORT", 4121)),
+
+        user=os.getenv("DB_USER", "root"),
+        password=os.getenv("DB_PASSWORD", "root_password"),
+        database=os.getenv("DB_NAME", "HostelManagement"),
+        charset='utf8mb4',
+        collation='utf8mb4_unicode_ci'  # Replace with your database name
+    )
 
 def get_database_connection():
     return mysql.connector.connect(
@@ -24,6 +35,24 @@ def get_database_connection():
         charset='utf8mb4',
         collation='utf8mb4_unicode_ci'
     )
+
+def get_columns(table_name):
+    conn = create_connection()
+    cursor = conn.cursor()
+    cursor.execute(f"DESCRIBE {table_name};")
+    columns = cursor.fetchall()
+    conn.close()
+    return [column[0] for column in columns]
+
+# Function to search in a table by a selected column
+def search_data(table_name, column, search_value):
+    conn = create_connection()
+    cursor = conn.cursor(dictionary=True)
+    query = f"SELECT * FROM {table_name} WHERE {column} LIKE %s"
+    cursor.execute(query, (f"%{search_value}%",))
+    results = cursor.fetchall()
+    conn.close()
+    return pd.DataFrame(results)
 
 def init_session_state():
     if 'page' not in st.session_state:
@@ -91,12 +120,37 @@ def dashboard():
 def manage_students():
     st.header("Student Management")
     
+    # Creating tabs for different operations
     tab1, tab2, tab3 = st.tabs(["View Students", "Add Student", "Update/Delete Student"])
     
+    # Tab 1: View Students
     with tab1:
+        # Get column names for STUDENT table
+        columns = get_columns("STUDENT")
+        
+        # Select column to search
+        column_option = st.selectbox("Select Column", columns)
+
+        # Input for search value
+        search_value = st.text_input(f"Enter {column_option} to search:")
+
+        if st.button("Search"):
+            if search_value:
+                # Fetch and display search results
+                results = search_data("STUDENT", column_option, search_value)
+                if results.empty:
+                    st.write(f"No results found for {search_value} in column {column_option}.")
+                else:
+                    st.write(f"Search Results for {search_value} in {column_option}:")
+                    st.dataframe(results)
+            else:
+                st.warning("Please enter a search term.")
+
+        # View all students
         students = run_query("SELECT * FROM STUDENT")
         if students:
             st.dataframe(pd.DataFrame(students))
+
     
     with tab2:
         with st.form("add_student_form"):
@@ -193,15 +247,36 @@ def manage_rooms():
     tab1, tab2, tab3 = st.tabs(["View Rooms", "Add Room", "Update Room"])
     
     # View Rooms tab
+    
     with tab1:
-        rooms = run_query("""
-            SELECT r.*, COUNT(s.student_id) as occupants
-            FROM ROOM r
-            LEFT JOIN STUDENT s ON r.room_no = s.room_no
-            GROUP BY r.room_no
-        """)
-        if rooms:
-            st.dataframe(pd.DataFrame(rooms))
+         columns = get_columns("ROOM")
+        
+        # Select column to search
+         column_option = st.selectbox("Select Column", columns)
+
+        # Input for search value
+         search_value = st.text_input(f"Enter {column_option} to search:")
+
+         if st.button("Search"):
+            if search_value:
+                # Fetch and display search results
+                results = search_data("ROOM", column_option, search_value)
+                if results.empty:
+                    st.write(f"No results found for {search_value} in column {column_option}.")
+                else:
+                    st.write(f"Search Results for {search_value} in {column_option}:")
+                    st.dataframe(results)
+            else:
+                st.warning("Please enter a search term.")
+
+         rooms = run_query("""
+                SELECT r.*, COUNT(s.student_id) as occupants
+                FROM ROOM r
+                LEFT JOIN STUDENT s ON r.room_no = s.room_no
+                GROUP BY r.room_no
+            """)
+         if rooms:
+                st.dataframe(pd.DataFrame(rooms))
     
     # Add Room tab
     with tab2:
@@ -243,6 +318,26 @@ def manage_employees():
 
     # Tab 1: View Employees
     with tab1:
+        columns = get_columns("EMPLOYEE")
+        
+        # Select column to search
+        column_option = st.selectbox("Select Column", columns)
+
+        # Input for search value
+        search_value = st.text_input(f"Enter {column_option} to search:")
+
+        if st.button("Search"):
+            if search_value:
+                # Fetch and display search results
+                results = search_data("EMPLOYEE", column_option, search_value)
+                if results.empty:
+                    st.write(f"No results found for {search_value} in column {column_option}.")
+                else:
+                    st.write(f"Search Results for {search_value} in {column_option}:")
+                    st.dataframe(results)
+            else:
+                st.warning("Please enter a search term.")
+
         employees = run_query("SELECT * FROM EMPLOYEE")
         if employees:
             st.dataframe(pd.DataFrame(employees))
