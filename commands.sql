@@ -94,7 +94,17 @@ END //
 DELIMITER ;
 
 -- Initial population of ROOM_OCCUPANCY table
+DELIMITER //
 
+CREATE PROCEDURE get_fee_details()
+BEGIN
+    SELECT f.*, s.name AS student_name
+    FROM FEE f
+    JOIN STUDENT s 
+    ON f.fee_id = CONCAT('F', LPAD(SUBSTRING(s.student_id, 2), 3, '0'));
+END //
+
+DELIMITER ;
 
 -- Insert sample data
 INSERT INTO HOSTEL (name) VALUES 
